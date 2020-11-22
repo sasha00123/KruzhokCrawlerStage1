@@ -5,7 +5,7 @@
 - Fetching organizations
 - Checking for website availability
 - Fetching metadata (keywords, description, title)
-- Fetching social accounts and number of followers
+- Fetching social accounts (VK, Instagram, Facebook, Twitter) and number of followers
 
 ### Open problems
 
