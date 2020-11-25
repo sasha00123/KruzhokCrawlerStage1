@@ -9,6 +9,7 @@ import requests
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 from joblib import Parallel, delayed
+from metadata_parser import MetadataParser
 
 VK_REGEXP = re.compile(r'<em class="pm_counter">([\d,]+)</em>')
 FACEBOOK_REGEXP = re.compile(r'([\d,]+) people follow this')
@@ -48,8 +49,7 @@ def extract_followers(provider: str, url: str) -> int:
                 f"https://cdn.syndication.twimg.com/widgets/followbutton/info.json?screen_names={screen_name}"
             ).json()
             return data[0]['followers_count']
-    except Exception as e:
-        print(e)
+    except:
         return -1
 
     raise NotImplementedError
@@ -136,17 +136,19 @@ def add_dict_prefix(prefix: str, data: dict) -> dict:
     return {prefix + k: v for k, v in data.items()}
 
 
-def fetch_metadata(soup: BeautifulSoup) -> Tuple[str, List[str], List[str]]:
+def fetch_metadata(html: str) -> Tuple[str, str, str]:
     """
     Extracting page metadata.
-    :param soup: BeautifulSoup root node
+    :param html: HTML of the document
     :return: Tuple of title, keywords and descriptions
     """
-    title = getattr(soup.title, 'text', '')
-    keywords = [item['content'] for item in soup.select('[name=Keywords][content], [name=keywords][content]')]
-    descriptions = [item['content'] for item in soup.select('[name=Description][content], [name=description][content]')]
+    parser = MetadataParser(html=html, search_head_only=True)
 
-    return title, keywords, descriptions
+    return (
+        parser.metadata['page'].get('title', ''),
+        parser.metadata['meta'].get('keywords', ''),
+        parser.metadata['meta'].get('description', '')
+    )
 
 
 def process(organization: dict) -> dict:
@@ -169,16 +171,14 @@ def process(organization: dict) -> dict:
     site_available = resp is not None and resp.ok
 
     if site_available:
-        soup = BeautifulSoup(resp.text, features='lxml')
-
         # Метаданные
-        title, keywords, descriptions = fetch_metadata(soup)
+        title, keywords, description = fetch_metadata(resp.text)
 
         # Соцсети
         social_spider = SocialCrawler(organization['site_url'])
         social_urls = social_spider.crawl()
     else:
-        title, keywords, descriptions = "", [], []
+        title, keywords, description = "", "", ""
         social_urls = []
 
     return {
@@ -187,7 +187,7 @@ def process(organization: dict) -> dict:
             "available": site_available,
             "title": title,
             "keywords": keywords,
-            "descriptions": descriptions,
+            "description": description,
         }),
         "social_urls": social_urls
     }
